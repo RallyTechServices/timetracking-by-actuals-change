@@ -125,8 +125,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
             // apply the most current values of these records to the row
             Ext.apply(row_hash[oid], snap.getData());
             
-            console.log(snap.get('FormattedID'), delta);
-        });
+            this.logger.log(snap.get('FormattedID'), delta);
+        },this);
         
         return Ext.Object.getValues(row_hash);
     },
