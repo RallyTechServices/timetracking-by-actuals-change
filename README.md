@@ -1,6 +1,11 @@
 #Time Tracking By Actuals Change
 
+An app that shows changes to Actuals entries over a period of time and traced
+back to an epic (2nd level PI)
+
 ## Development Notes
+
+* Requires lookback API
 
 ### First Load
 
