@@ -199,8 +199,9 @@ Ext.define("TSTimeTrackingByActualsChange", {
             filters: Rally.data.wsapi.Filter.or(filter_array),
             model  : 'User',
             limit  : Infinity,
-            fetch  : ['UserName','CostCenter']
+            fetch  : ['UserName','CostCenter','OfficeLocation','Department','Role']
         };
+        
         
         this._loadWSAPIItems(config).then({
             success: function(users) {
@@ -241,8 +242,14 @@ Ext.define("TSTimeTrackingByActualsChange", {
                         
             if (owner) {
                 row['__owner_cost_center'] = owner.get('CostCenter');
+                row['__owner_role'] = owner.get('Role');
+                row['__owner_department'] = owner.get('Department');
+                row['__owner_location'] = owner.get('OfficeLocation');
             } else {
                 row['__owner_cost_center'] = '';
+                row['__owner_department'] = '';
+                row['__owner_location'] = '';
+                row['__owner_role'] = '';
             }
 
         },this);
@@ -311,7 +318,10 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     return v.get('_refObjectName');
                 }},
                 {dataIndex:'__owner_cost_center', text:'Cost Center' },
-                
+                {dataIndex:'__owner_department', text:'Department' },
+                {dataIndex:'__owner_location', text:'Office Location' },
+                {dataIndex:'__owner_role', text:'Role' },
+
                 {dataIndex:'__delta', text:'Actual Time'},
                 {dataIndex:'__epic', text: 'Epic', renderer: function(v) {
                     if ( !v.FormattedID ) {
