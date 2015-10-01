@@ -3,11 +3,11 @@
 <head>
     <title>Time Tracking By Actuals Change</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Sep 30 2015 17:19:39 GMT-0700 (PDT) -->
+    <!--  Build Date: Wed Sep 30 2015 17:24:46 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Sep 30 2015 17:19:39 GMT-0700 (PDT)";
-        var CHECKSUM = 7063985052;
+        var APP_BUILD_DATE = "Wed Sep 30 2015 17:24:46 GMT-0700 (PDT)";
+        var CHECKSUM = 7237404129;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -377,7 +377,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
             filters: Rally.data.wsapi.Filter.or(filter_array),
             model  : 'User',
             limit  : Infinity,
-            fetch  : ['UserName']
+            fetch  : ['UserName','CostCenter']
         };
         
         this._loadWSAPIItems(config).then({
@@ -418,8 +418,10 @@ Ext.define("TSTimeTrackingByActualsChange", {
             row['__owner'] = owner;
                         
             if (owner) {
-                
-            } 
+                row['__owner_cost_center'] = owner.get('CostCenter');
+            } else {
+                row['__owner_cost_center'] = '';
+            }
 
         },this);
     },
@@ -486,6 +488,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     }
                     return v.get('_refObjectName');
                 }},
+                {dataIndex:'__owner_cost_center', text:'Cost Center' },
+                
                 {dataIndex:'__delta', text:'Actual Time'},
                 {dataIndex:'__epic', text: 'Epic', renderer: function(v) {
                     if ( !v.FormattedID ) {
