@@ -398,10 +398,10 @@ Ext.define("TSTimeTrackingByActualsChange", {
             listeners: {
                 scope: this,
                 viewready: function() {
-                    this.down('#export_button').setDisabled(false);
+                    this.down('#export_button') && this.down('#export_button').setDisabled(false);
                 },
                 destroy: function() {
-                    this.down('#export_button').setDisabled(true);
+                    this.down('#export_button') && this.down('#export_button').setDisabled(true);
                 }
             }
         });
