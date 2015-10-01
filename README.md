@@ -4,11 +4,15 @@ An app that shows changes to Actuals entries over a period of time and traced
 back to an epic (2nd level PI).
 
 The settings box allows for choosing what field on tasks will hold the value for 
-that task's "Task Type".
+that task's "Task Type" and a "Product" from the 2nd level PI.  
 
 ## Development Notes
 
 * Requires lookback API
+* Assumes that the lowest level PI is called a Feature
+* Uses settings for the fields.  The defaults are not custom fields so the thing
+ doesn't fail horribly when the field doesn't exist.  
+* An example of "chunking" calls to WSAPI with sets of very very long filters
 
 ### First Load
 

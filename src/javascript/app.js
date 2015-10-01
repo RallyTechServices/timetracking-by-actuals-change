@@ -14,7 +14,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     config: {
         defaultSettings: {
             typeField: 'State',
-            productField: 'c_TargetProgram'
+            productField: 'Expedite'
         }
     },
     
@@ -81,8 +81,23 @@ Ext.define("TSTimeTrackingByActualsChange", {
 
             this._getTasksThatChanged(start_date, end_date).then({
                 scope: this,
+                failure: function(msg) {
+                    Ext.Msg.alert("Problem loading Actuals", msg);
+                },
+                
                 success: function(snaps) {
+                    this.down('#display_box').removeAll();
+                    
+                    if ( snaps.length === 0 ) {
+                        this.down('#display_box').add({
+                            xtype:'container',
+                            html :'No changes found'
+                        });
+                        return;
+                    }
                     var rows = this._getTasksFromSnaps(snaps);
+                    this.logger.log("Number of tasks:", rows.length);
+                    
                     this.setLoading("Gathering Related Information");
                     
                     Deft.Chain.sequence([
@@ -91,8 +106,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     ],this).then({
                         scope: this,
                         success: function(results) {
-                            stories_by_oid = results[0];
-                            users_by_oid   = results[1];
+                            var stories_by_oid = results[0];
+                            var users_by_oid   = results[1];
                             
                             this._updateEpicInformation(rows,stories_by_oid);
                             this._updateOwnerInformation(rows,users_by_oid);
@@ -117,12 +132,12 @@ Ext.define("TSTimeTrackingByActualsChange", {
     _getTasksThatChanged: function(start_date,end_date) {
         var config = {
             filters: [
-                {property:'_ProjectHierarchy', operator:'in', value: [this.getContext().getProject().ObjectID]},
                 {property:'_TypeHierarchy', value:'Task'},
                 {property: '_ValidFrom',operator: '>=', value: start_date},
                 {property: '_ValidFrom',operator: '<=', value: end_date},
-                {property: '_PreviousValues.Actuals', operator: 'exists', value: true},
-                {property:'Actuals',operator:'>',value: 0}
+                {property:'Actuals',operator:'>',value: 0},
+                {property:'_ProjectHierarchy', operator:'in', value: [this.getContext().getProject().ObjectID]},
+                {property: '_PreviousValues.Actuals', operator: 'exists', value: true}
             ],
             fetch: ['_PreviousValues.Actuals','FormattedID','Owner','Actuals','Name','WorkProduct', this.getSetting('typeField')],
             sorters: [{property:'_ValidFrom',direction:'ASC'}]
@@ -148,8 +163,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
             
             // apply the most current values of these records to the row
             Ext.apply(row_hash[oid], snap.getData());
-            
-            this.logger.log(snap.get('FormattedID'), delta);
         },this);
         
         return Ext.Object.getValues(row_hash);
@@ -157,6 +170,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     
     _getStoriesByOID: function(rows) {
         var deferred = Ext.create('Deft.Deferred');
+        var me = this;
         var workproducts = Ext.Array.pluck(rows,'WorkProduct');
         var unique_workproducts = Ext.Array.unique(workproducts);
                 
@@ -164,17 +178,32 @@ Ext.define("TSTimeTrackingByActualsChange", {
             return { property: 'ObjectID', value: wp };
         });
         
-        var config = {
-            filters: Rally.data.wsapi.Filter.or(filter_array),
-            model  : 'HierarchicalRequirement',
-            limit  : Infinity,
-            fetch  : ['FormattedID','Name','Feature','Parent',this.getSetting('productField')]
-        };
+        this.logger.log("# of stories to fetch:", unique_workproducts.length);
         
-        this._loadWSAPIItems(config).then({
+        var chunk_size = 100;
+        var array_of_filters = [];
+        while (filter_array.length > 0) {
+            array_of_filters.push(filter_array.splice(0, chunk_size));
+        }
+            
+        var promises = [];
+        Ext.Array.each(array_of_filters,function(filters) {
+            promises.push( function() {
+                var config = {
+                    filters: Rally.data.wsapi.Filter.or(filters),
+                    model  : 'HierarchicalRequirement',
+                    limit  : Infinity,
+                    fetch  : ['FormattedID','Name','Feature','Parent',me.getSetting('productField')]
+                };
+                return me._loadWSAPIItems(config);
+            });
+        });
+        
+        
+        Deft.Chain.sequence(promises,this).then({
             success: function(stories) {
                 var stories_by_oid = {};
-                Ext.Array.each(stories, function(story){
+                Ext.Array.each(Ext.Array.flatten(stories), function(story){
                     stories_by_oid[story.get('ObjectID')] = story;
                 });
                 deferred.resolve(stories_by_oid);
@@ -188,25 +217,39 @@ Ext.define("TSTimeTrackingByActualsChange", {
     
     _getOwnersByOID: function(rows) {
         var deferred = Ext.create('Deft.Deferred');
+        var me = this;
         var owners = Ext.Array.pluck(rows,'Owner');
         var unique_owners = Ext.Array.unique(owners);
-        
+        this.logger.log("# of owners to fetch:", unique_owners.length);
+
         var filter_array = Ext.Array.map(unique_owners, function(owner) {
             return { property: 'ObjectID', value: owner };
         });
         
-        var config = {
-            filters: Rally.data.wsapi.Filter.or(filter_array),
-            model  : 'User',
-            limit  : Infinity,
-            fetch  : ['UserName','CostCenter','OfficeLocation','Department','Role']
-        };
+        var chunk_size = 100;
+        var array_of_filters = [];
+        while (filter_array.length > 0) {
+            array_of_filters.push(filter_array.splice(0, chunk_size));
+        }
+            
+        var promises = [];
+        Ext.Array.each(array_of_filters,function(filters) {
+            promises.push( function() {
+                var config = {
+                    filters: Rally.data.wsapi.Filter.or(filters),
+                    model  : 'User',
+                    limit  : Infinity,
+                    fetch  : ['UserName','CostCenter','OfficeLocation','Department','Role']
+                };
+                return me._loadWSAPIItems(config);
+            });
+        });
         
         
-        this._loadWSAPIItems(config).then({
+        Deft.Chain.sequence(promises,this).then({
             success: function(users) {
                 var users_by_oid = {};
-                Ext.Array.each(users, function(user){
+                Ext.Array.each(Ext.Array.flatten(users), function(user){
                     users_by_oid[user.get('ObjectID')] = user;
                 });
                 deferred.resolve(users_by_oid);
@@ -223,8 +266,9 @@ Ext.define("TSTimeTrackingByActualsChange", {
             var wp_oid = row.WorkProduct;
             var story = stories_by_oid[wp_oid];
             
-            if (story && story.get('Feature')) {
+            if (story && story.get('Feature') && story.get('Feature').Parent) {
                 row['__epic'] = story.get('Feature').Parent;
+                
                 row['__epic_product'] = story.get('Feature').Parent[this.getSetting('productField')] || '--';
             } else {
                 row['__epic'] = {};
@@ -281,6 +325,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
         var deferred = Ext.create('Deft.Deferred');
         var me = this;
         
+        this.logger.log(config.model, "Loading with filters: ", Ext.clone(config.filters));
+        
         var default_config = {
             fetch: ['ObjectID']
         };
@@ -335,7 +381,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
         });
     },
     
-    
     getOptions: function() {
         return [
             {
@@ -368,7 +413,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         
         store.filter([{
             filterFn:function(field){ 
-                app.logger.log('field:', field);
+                app.logger.log('field:', field.get('name'), field);
                 
                 var attribute_definition = field.get('fieldDefinition').attributeDefinition;
                 var attribute_type = null;
