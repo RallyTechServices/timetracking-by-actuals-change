@@ -13,7 +13,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
     
     config: {
         defaultSettings: {
-            typeField: 'State'
+            typeField: 'State',
+            productField: 'c_TargetProgram'
         }
     },
     
@@ -164,7 +165,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
             filters: Rally.data.wsapi.Filter.or(filter_array),
             model  : 'HierarchicalRequirement',
             limit  : Infinity,
-            fetch  : ['FormattedID','Name','Feature','Parent']
+            fetch  : ['FormattedID','Name','Feature','Parent',this.getSetting('productField')]
         };
         
         this._loadWSAPIItems(config).then({
@@ -191,10 +192,12 @@ Ext.define("TSTimeTrackingByActualsChange", {
             
             if (story && story.get('Feature')) {
                 row['__epic'] = story.get('Feature').Parent;
+                row['__epic_product'] = story.get('Feature').Parent[this.getSetting('productField')] || '--';
             } else {
                 row['__epic'] = {};
+                row['__epic_product'] = '--';
             }
-        });
+        },this);
     },
     
     _updateOwnerInformation: function(rows) {
@@ -268,7 +271,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     } 
                     
                     return v.FormattedID;
-                } }
+                } },
+                {dataIndex: '__epic_product', text:'Product' }
             ]
         });
     },
@@ -343,6 +347,24 @@ Ext.define("TSTimeTrackingByActualsChange", {
             autoExpand: false,
             alwaysExpanded: false,
             model: 'Task',
+            listeners: {
+                ready: function(field_box) {
+                    me._filterOutExceptChoices(field_box.getStore());
+                }
+            },
+            readyEvent: 'ready'
+        },
+        {
+            name: 'productField',
+            xtype: 'rallyfieldcombobox',
+            fieldLabel: 'Product Field',
+            labelWidth: 75,
+            labelAlign: 'left',
+            minWidth: 200,
+            margin: 10,
+            autoExpand: false,
+            alwaysExpanded: false,
+            model: 'PortfolioItem',
             listeners: {
                 ready: function(field_box) {
                     me._filterOutExceptChoices(field_box.getStore());
