@@ -85,12 +85,17 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     var rows = this._getTasksFromSnaps(snaps);
                     this.setLoading("Gathering Related Information");
                     
-                    this._getStoriesByOID(rows).then({
+                    Deft.Chain.sequence([
+                        function() { return this._getStoriesByOID(rows); },
+                        function() { return this._getOwnersByOID(rows); }
+                    ],this).then({
                         scope: this,
-                        success: function(stories_by_oid) {
-                            this._updateEpicInformation(rows,stories_by_oid);
+                        success: function(results) {
+                            stories_by_oid = results[0];
+                            users_by_oid   = results[1];
                             
-                            this._updateOwnerInformation(rows);
+                            this._updateEpicInformation(rows,stories_by_oid);
+                            this._updateOwnerInformation(rows,users_by_oid);
                             
                             this._addGrid(rows); 
                         },
@@ -154,9 +159,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         var deferred = Ext.create('Deft.Deferred');
         var workproducts = Ext.Array.pluck(rows,'WorkProduct');
         var unique_workproducts = Ext.Array.unique(workproducts);
-        
-        console.log('work products:', unique_workproducts);
-        
+                
         var filter_array = Ext.Array.map(unique_workproducts, function(wp) {
             return { property: 'ObjectID', value: wp };
         });
@@ -183,12 +186,41 @@ Ext.define("TSTimeTrackingByActualsChange", {
         return deferred.promise;
     },
     
+    _getOwnersByOID: function(rows) {
+        var deferred = Ext.create('Deft.Deferred');
+        var owners = Ext.Array.pluck(rows,'Owner');
+        var unique_owners = Ext.Array.unique(owners);
+        
+        var filter_array = Ext.Array.map(unique_owners, function(owner) {
+            return { property: 'ObjectID', value: owner };
+        });
+        
+        var config = {
+            filters: Rally.data.wsapi.Filter.or(filter_array),
+            model  : 'User',
+            limit  : Infinity,
+            fetch  : ['UserName']
+        };
+        
+        this._loadWSAPIItems(config).then({
+            success: function(users) {
+                var users_by_oid = {};
+                Ext.Array.each(users, function(user){
+                    users_by_oid[user.get('ObjectID')] = user;
+                });
+                deferred.resolve(users_by_oid);
+            },
+            failure: function(msg) {
+                deferred.reject(msg);
+            }
+        });
+        return deferred.promise;
+    },
+    
     _updateEpicInformation: function(rows,stories_by_oid) {
         Ext.Array.each(rows, function(row){
             var wp_oid = row.WorkProduct;
             var story = stories_by_oid[wp_oid];
-            
-            console.log(story);
             
             if (story && story.get('Feature')) {
                 row['__epic'] = story.get('Feature').Parent;
@@ -200,11 +232,18 @@ Ext.define("TSTimeTrackingByActualsChange", {
         },this);
     },
     
-    _updateOwnerInformation: function(rows) {
-        var owners = Ext.Array.pluck(rows, 'Owner');
-        var unique_owners = Ext.Array.unique(owners);
-        
-        console.log('owners:',unique_owners);
+    _updateOwnerInformation: function(rows,users_by_oid) {
+        Ext.Array.each(rows, function(row){
+            var owner_oid = row.Owner;
+            var owner = users_by_oid[owner_oid];
+
+            row['__owner'] = owner;
+                        
+            if (owner) {
+                
+            } 
+
+        },this);
     },
     
     _loadSnapshots: function(config) {
@@ -263,7 +302,12 @@ Ext.define("TSTimeTrackingByActualsChange", {
             columnCfgs: [
                 {dataIndex:'FormattedID', text:'Task Number'},
                 {dataIndex: this.getSetting('typeField'), text: 'Task Type' },
-                {dataIndex: 'Owner', text: 'Task Owner' },
+                {dataIndex:'__owner', text:'Owner', renderer: function(v) {
+                    if ( Ext.isEmpty(v) ) {
+                        return "--";
+                    }
+                    return v.get('_refObjectName');
+                }},
                 {dataIndex:'__delta', text:'Actual Time'},
                 {dataIndex:'__epic', text: 'Epic', renderer: function(v) {
                     if ( !v.FormattedID ) {
