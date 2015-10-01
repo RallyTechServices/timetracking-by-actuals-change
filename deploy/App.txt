@@ -3,11 +3,11 @@
 <head>
     <title>Time Tracking By Actuals Change</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Thu Oct 01 2015 10:47:09 GMT-0700 (PDT) -->
+    <!--  Build Date: Thu Oct 01 2015 15:45:09 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Thu Oct 01 2015 10:47:09 GMT-0700 (PDT)";
-        var CHECKSUM = 40487578382;
+        var APP_BUILD_DATE = "Thu Oct 01 2015 15:45:09 GMT-0700 (PDT)";
+        var CHECKSUM = 40320114937;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -192,7 +192,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     config: {
         defaultSettings: {
             typeField: 'State',
-            productField: 'Expedite'
+            productField: 'c_Driver'
         }
     },
     
@@ -459,11 +459,12 @@ Ext.define("TSTimeTrackingByActualsChange", {
             var story = stories_by_oid[wp_oid];
             
             if (story && story.get('Feature') && story.get('Feature').Parent) {
-                row['__epic'] = story.get('Feature').Parent;
+                
+                row['__epic'] = story.get('Feature').Parent.FormattedID;
                 
                 row['__epic_product'] = story.get('Feature').Parent[this.getSetting('productField')] || '--';
             } else {
-                row['__epic'] = {};
+                row['__epic'] = "--";
                 row['__epic_product'] = '--';
             }
         },this);
@@ -564,13 +565,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 {dataIndex:'__owner_role', text:'Role' },
 
                 {dataIndex:'__delta', text:'Actual Time'},
-                {dataIndex:'__epic', text: 'Epic', renderer: function(v) {
-                    if ( !v.FormattedID ) {
-                        return "--";
-                    } 
-                    
-                    return v.FormattedID;
-                } },
+                {dataIndex:'__epic', text: 'Epic' },
                 {dataIndex: '__epic_product', text:'Product' }
             ],
             listeners: {

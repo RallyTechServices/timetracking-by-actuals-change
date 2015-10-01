@@ -14,7 +14,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     config: {
         defaultSettings: {
             typeField: 'State',
-            productField: 'Expedite'
+            productField: 'c_Driver'
         }
     },
     
@@ -281,11 +281,12 @@ Ext.define("TSTimeTrackingByActualsChange", {
             var story = stories_by_oid[wp_oid];
             
             if (story && story.get('Feature') && story.get('Feature').Parent) {
-                row['__epic'] = story.get('Feature').Parent;
+                
+                row['__epic'] = story.get('Feature').Parent.FormattedID;
                 
                 row['__epic_product'] = story.get('Feature').Parent[this.getSetting('productField')] || '--';
             } else {
-                row['__epic'] = {};
+                row['__epic'] = "--";
                 row['__epic_product'] = '--';
             }
         },this);
@@ -386,13 +387,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 {dataIndex:'__owner_role', text:'Role' },
 
                 {dataIndex:'__delta', text:'Actual Time'},
-                {dataIndex:'__epic', text: 'Epic', renderer: function(v) {
-                    if ( !v.FormattedID ) {
-                        return "--";
-                    } 
-                    
-                    return v.FormattedID;
-                } },
+                {dataIndex:'__epic', text: 'Epic' },
                 {dataIndex: '__epic_product', text:'Product' }
             ],
             listeners: {
