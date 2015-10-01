@@ -3,10 +3,10 @@
 <head>
     <title>Time Tracking By Actuals Change</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Wed Sep 30 2015 18:23:13 GMT-0700 (PDT) -->
+    <!--  Build Date: Thu Oct 01 2015 10:45:18 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Wed Sep 30 2015 18:23:13 GMT-0700 (PDT)";
+        var APP_BUILD_DATE = "Thu Oct 01 2015 10:45:18 GMT-0700 (PDT)";
         var CHECKSUM = [%= checksum %];
     </script>
     

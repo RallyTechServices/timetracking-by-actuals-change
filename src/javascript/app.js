@@ -4,7 +4,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     logger: new Rally.technicalservices.Logger(),
     defaults: { margin: 10 },
     items: [
-        {xtype:'container',itemId:'selector_box'},
+        {xtype:'container',itemId:'selector_box', layout: { type: 'hbox' }},
         {xtype:'container',itemId:'display_box'}
     ],
     
@@ -26,7 +26,13 @@ Ext.define("TSTimeTrackingByActualsChange", {
     _addSelectors: function(container) {
         container.removeAll();
         
-        container.add({
+        var date_container = container.add({ xtype:'container', layout: { type:'vbox' } });
+        
+        var spacer = container.add({ xtype: 'container', flex: 1});
+        
+        var right_container = container.add({xtype:'container'});
+        
+        date_container.add({
             xtype:'rallydatefield',
             itemId:'start_date_selector',
             fieldLabel: 'Start:',
@@ -43,7 +49,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
             }
         });
         
-        container.add({
+        date_container.add({
             xtype:'rallydatefield',
             itemId:'end_date_selector',
             fieldLabel: 'End:',
@@ -59,7 +65,13 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 }
             }
         });
-        
+
+        right_container.add({
+            xtype:'rallybutton',
+            itemId:'export_button',
+            text: '<span class="icon-export"> </span>',
+            disabled: true
+        });
     },
     
     _updateData: function() {
@@ -67,6 +79,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
         this.logger.log('updateData');
 
         if ( this._hasNeededDates() ) {
+            this.down('#display_box').removeAll();
+
             var start_date = Rally.util.DateTime.toIsoString(this.start_date);
             var end_date =   Rally.util.DateTime.toIsoString(this.end_date);
             
@@ -355,7 +369,10 @@ Ext.define("TSTimeTrackingByActualsChange", {
             store: store,
             showPagingToolbar: false,
             columnCfgs: [
-                {dataIndex:'FormattedID', text:'Task Number'},
+                {dataIndex:'FormattedID', text:'Task Number', renderer: function(value, meta, record) {
+                    var url = Rally.nav.Manager.getDetailUrl( '/task/' + record.get('ObjectID') );
+                    return Ext.String.format("<a href={0} target='_blank'>{1}</a>", url, value);
+                }},
                 {dataIndex: this.getSetting('typeField'), text: 'Task Type' },
                 {dataIndex:'__owner', text:'Owner', renderer: function(v) {
                     if ( Ext.isEmpty(v) ) {
@@ -377,7 +394,38 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     return v.FormattedID;
                 } },
                 {dataIndex: '__epic_product', text:'Product' }
-            ]
+            ],
+            listeners: {
+                scope: this,
+                viewready: function() {
+                    this.down('#export_button').setDisabled(false);
+                },
+                destroy: function() {
+                    this.down('#export_button').setDisabled(true);
+                }
+            }
+        });
+    },
+    
+    _export: function(){
+        var grid = this.down('rallygrid');
+        
+        if ( !grid ) { return; }
+        
+        this.logger.log('_export',grid);
+
+        var filename = Ext.String.format('task-report.csv');
+
+        var csv = Rally.technicalservices.FileUtilities.getCSVFromGrid(this,grid).then({
+            scope: this,
+            success: function(csv){
+                if (csv && csv.length > 0){
+                    Rally.technicalservices.FileUtilities.saveCSVToFile(csv,filename);
+                } else {
+                    Rally.ui.notify.Notifier.showWarning({message: 'No data to export'});
+                }
+                
+            }
         });
     },
     
