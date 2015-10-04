@@ -104,6 +104,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
             this._getTasksThatChanged(start_date, end_date).then({
                 scope: this,
                 failure: function(msg) {
+                    this.setLoading(false);
                     Ext.Msg.alert("Problem loading Actuals", msg);
                 },
                 
@@ -117,10 +118,11 @@ Ext.define("TSTimeTrackingByActualsChange", {
                         });
                         return;
                     }
+
+                    Rally.getApp().setLoading("Gathering related information...");
+
                     var rows = this._getTasksFromSnaps(snaps);
                     this.logger.log("Number of tasks:", rows.length);
-                    
-                    this.setLoading("Gathering Related Information");
                     
                     Deft.Chain.sequence([
                         function() { return this._getStoriesByOID(rows); },
@@ -130,20 +132,22 @@ Ext.define("TSTimeTrackingByActualsChange", {
                         success: function(results) {
                             var stories_by_oid = results[0];
                             var users_by_oid   = results[1];
+                            this.setLoading('Calculating...');
                             
                             this._updateEpicInformation(rows,stories_by_oid);
                             this._updateOwnerInformation(rows,users_by_oid);
                             
                             this._addGrid(rows); 
+                            this.setLoading(false);
                         },
                         failure: function(msg) {
+                            this.setLoading(false);
                             Ext.Msg.alert("Problem loading ancillary data", msg);
                         }
                     
-                    }).always(function() { me.setLoading(false); });
-
+                    });
                 }
-            }).always(function() { me.setLoading(false); });
+            });
         }
     },
     
@@ -376,7 +380,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         this.down('#display_box').removeAll();
         var store = Ext.create('Rally.data.custom.Store',{
             data:rows,
-            pageSize: 10000
+            pageSize: 30000
         });
         
         this.down('#display_box').add({

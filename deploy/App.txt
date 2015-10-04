@@ -3,11 +3,11 @@
 <head>
     <title>Time Tracking By Actuals Change</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Oct 04 2015 12:35:52 GMT-0700 (PDT) -->
+    <!--  Build Date: Sun Oct 04 2015 14:48:29 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Oct 04 2015 12:35:52 GMT-0700 (PDT)";
-        var CHECKSUM = 44652142240;
+        var APP_BUILD_DATE = "Sun Oct 04 2015 14:48:29 GMT-0700 (PDT)";
+        var CHECKSUM = 45071836960;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -282,6 +282,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
             this._getTasksThatChanged(start_date, end_date).then({
                 scope: this,
                 failure: function(msg) {
+                    this.setLoading(false);
                     Ext.Msg.alert("Problem loading Actuals", msg);
                 },
                 
@@ -295,10 +296,11 @@ Ext.define("TSTimeTrackingByActualsChange", {
                         });
                         return;
                     }
+
+                    Rally.getApp().setLoading("Gathering related information...");
+
                     var rows = this._getTasksFromSnaps(snaps);
                     this.logger.log("Number of tasks:", rows.length);
-                    
-                    this.setLoading("Gathering Related Information");
                     
                     Deft.Chain.sequence([
                         function() { return this._getStoriesByOID(rows); },
@@ -308,20 +310,22 @@ Ext.define("TSTimeTrackingByActualsChange", {
                         success: function(results) {
                             var stories_by_oid = results[0];
                             var users_by_oid   = results[1];
+                            this.setLoading('Calculating...');
                             
                             this._updateEpicInformation(rows,stories_by_oid);
                             this._updateOwnerInformation(rows,users_by_oid);
                             
                             this._addGrid(rows); 
+                            this.setLoading(false);
                         },
                         failure: function(msg) {
+                            this.setLoading(false);
                             Ext.Msg.alert("Problem loading ancillary data", msg);
                         }
                     
-                    }).always(function() { me.setLoading(false); });
-
+                    });
                 }
-            }).always(function() { me.setLoading(false); });
+            });
         }
     },
     
@@ -554,7 +558,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         this.down('#display_box').removeAll();
         var store = Ext.create('Rally.data.custom.Store',{
             data:rows,
-            pageSize: 10000
+            pageSize: 30000
         });
         
         this.down('#display_box').add({
@@ -1256,6 +1260,8 @@ Ext.define('Rally.technicalservices.FileUtilities', {
 
         var number_of_records = store.getTotalCount();
         
+        this.logger.log("Number of records to export:", number_of_records);
+        
         for (var i = 0; i < number_of_records; i++) {
             var record = store.getAt(i);
             if ( ! record ) {
@@ -1264,6 +1270,7 @@ Ext.define('Rally.technicalservices.FileUtilities', {
             csv.push( this._getCSVFromRecord(record, grid, store) );
         }
         
+        this.logger.log("Number or lines in CSV:", csv.length);
         return csv.join('\r\n');
     },
     
