@@ -70,7 +70,13 @@ Ext.define("TSTimeTrackingByActualsChange", {
             xtype:'rallybutton',
             itemId:'export_button',
             text: '<span class="icon-export"> </span>',
-            disabled: true
+            disabled: true,
+            listeners: {
+                scope: this,
+                click: function() {
+                    this._export();
+                }
+            }
         });
     },
     
@@ -366,7 +372,10 @@ Ext.define("TSTimeTrackingByActualsChange", {
         this.logger.log('_addGrid', rows);
         
         this.down('#display_box').removeAll();
-        var store = Ext.create('Rally.data.custom.Store',{data:rows});
+        var store = Ext.create('Rally.data.custom.Store',{
+            data:rows,
+            pageSize: 10000
+        });
         
         this.down('#display_box').add({
             xtype:'rallygrid',
@@ -376,7 +385,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 {dataIndex:'FormattedID', text:'Task Number', renderer: function(value, meta, record) {
                     var url = Rally.nav.Manager.getDetailUrl( '/task/' + record.get('ObjectID') );
                     return Ext.String.format("<a href={0} target='_blank'>{1}</a>", url, value);
-                }},
+                }, _csvIgnoreRender: true},
                 {dataIndex: this.getSetting('typeField'), text: 'Task Type' },
                 {dataIndex:'__owner', text:'Owner', renderer: function(v) {
                     if ( Ext.isEmpty(v) ) {
@@ -407,6 +416,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     
     _export: function(){
         var grid = this.down('rallygrid');
+        var me = this;
         
         if ( !grid ) { return; }
         
@@ -414,7 +424,10 @@ Ext.define("TSTimeTrackingByActualsChange", {
 
         var filename = Ext.String.format('task-report.csv');
 
-        var csv = Rally.technicalservices.FileUtilities.getCSVFromGrid(this,grid).then({
+        this.setLoading("Generating CSV");
+        Deft.Chain.sequence([
+            function() { return Rally.technicalservices.FileUtilities.getCSVFromGrid(this,grid) } 
+        ]).then({
             scope: this,
             success: function(csv){
                 if (csv && csv.length > 0){
@@ -424,7 +437,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 }
                 
             }
-        });
+        }).always(function() { me.setLoading(false); });
     },
     
     getOptions: function() {

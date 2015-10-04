@@ -13,6 +13,8 @@ that task's "Task Type" and a "Product" from the 2nd level PI.
 * Uses settings for the fields.  The defaults are not custom fields so the thing
  doesn't fail horribly when the field doesn't exist.  
 * An example of "chunking" calls to WSAPI with sets of very very long filters
+* An example of using fileutils to get csv from a grid backed by a custom store -- 
+attempts to determine the kind of store backing the grid
 
 ### First Load
 
