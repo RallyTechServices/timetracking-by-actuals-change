@@ -3,9 +3,11 @@ Ext.define("TSTimeTrackingByActualsChange", {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     defaults: { margin: 10 },
+    layout: { type: 'border' }, 
+    
     items: [
-        {xtype:'container',itemId:'selector_box', layout: { type: 'hbox' }},
-        {xtype:'container',itemId:'display_box'}
+        {xtype:'container',itemId:'selector_box', region: 'north', layout: { type: 'hbox' }},
+        {xtype:'container',itemId:'display_box', region: 'center', layout: { type: 'fit' } }
     ],
     
     start_date: null,

@@ -3,11 +3,11 @@
 <head>
     <title>Time Tracking By Actuals Change</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Oct 04 2015 12:30:55 GMT-0700 (PDT) -->
+    <!--  Build Date: Sun Oct 04 2015 12:35:52 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Oct 04 2015 12:30:55 GMT-0700 (PDT)";
-        var CHECKSUM = 44436995252;
+        var APP_BUILD_DATE = "Sun Oct 04 2015 12:35:52 GMT-0700 (PDT)";
+        var CHECKSUM = 44652142240;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -181,9 +181,11 @@ Ext.define("TSTimeTrackingByActualsChange", {
     componentCls: 'app',
     logger: new Rally.technicalservices.Logger(),
     defaults: { margin: 10 },
+    layout: { type: 'border' }, 
+    
     items: [
-        {xtype:'container',itemId:'selector_box', layout: { type: 'hbox' }},
-        {xtype:'container',itemId:'display_box'}
+        {xtype:'container',itemId:'selector_box', region: 'north', layout: { type: 'hbox' }},
+        {xtype:'container',itemId:'display_box', region: 'center', layout: { type: 'fit' } }
     ],
     
     start_date: null,

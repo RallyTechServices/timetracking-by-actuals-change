@@ -15,6 +15,7 @@ that task's "Task Type" and a "Product" from the 2nd level PI.
 * An example of "chunking" calls to WSAPI with sets of very very long filters
 * An example of using fileutils to get csv from a grid backed by a custom store -- 
 attempts to determine the kind of store backing the grid
+* An example of using border / fit so that the headers of the grid don't move
 
 ### First Load
 
