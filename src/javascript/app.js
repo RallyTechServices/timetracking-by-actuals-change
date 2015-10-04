@@ -281,10 +281,13 @@ Ext.define("TSTimeTrackingByActualsChange", {
             var story = stories_by_oid[wp_oid];
             
             if (story && story.get('Feature') && story.get('Feature').Parent) {
-                
                 row['__epic'] = story.get('Feature').Parent.FormattedID;
                 
-                row['__epic_product'] = story.get('Feature').Parent[this.getSetting('productField')] || '--';
+                var product = story.get('Feature').Parent[this.getSetting('productField')];
+                if ( Ext.isEmpty(product) ) {
+                    product = '--';
+                }
+                row['__epic_product'] = product;
             } else {
                 row['__epic'] = "--";
                 row['__epic_product'] = '--';
@@ -470,9 +473,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     if ( field.get('fieldDefinition').attributeDefinition.Constrained ) {
                         return true;
                     }
-                }
-                if ( field.get('name') === 'State' ) { 
-                    return true;
                 }
                 return false;
             } 
