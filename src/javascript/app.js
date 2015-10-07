@@ -131,14 +131,24 @@ Ext.define("TSTimeTrackingByActualsChange", {
                         scope: this,
                         success: function(results) {
                             var stories_by_oid = results[0];
+
                             var users_by_oid   = results[1];
                             this.setLoading('Calculating...');
                             
                             this._updateEpicInformation(rows,stories_by_oid);
                             this._updateOwnerInformation(rows,users_by_oid);
                             
-                            this._addGrid(rows); 
-                            this.setLoading(false);
+                            this._findMissingData(rows,stories_by_oid).then({
+                                scope: this,
+                                success: function(rows) {
+                                    this._addGrid(rows); 
+                                    this.setLoading(false);
+                                },
+                                failure: function(msg) {
+                                    this.setLoading(false);
+                                    Ext.Msg.alert('Problem loading ancillary data',msg);
+                                }
+                            });
                         },
                         failure: function(msg) {
                             this.setLoading(false);
@@ -287,22 +297,104 @@ Ext.define("TSTimeTrackingByActualsChange", {
         return deferred.promise;
     },
     
+    _findMissingData: function(rows, stories_by_oid) {
+        // sometimes the data seems to lose its connection to its feature or to the epic above it
+        var deferred = Ext.create('Deft.Deferred');
+        
+        // get the stories that we don't have the epics for
+        var features_missing_epics = [];
+        
+        Ext.Array.each(rows, function(row) {
+            if ( row.__epic != "--" ) {
+                return;
+            }
+            var wp_oid = row.WorkProduct;
+            var story = stories_by_oid[wp_oid];
+            if ( story && story.get('Feature') ) {
+                var feature_id = story.get('Feature').FormattedID;
+                row.__featureID = feature_id;
+                features_missing_epics.push(feature_id);
+            }
+        });
+        
+        features_missing_epics = Ext.Array.unique(features_missing_epics);
+        var filters = Ext.Array.map(features_missing_epics, function(feature_fid){
+            return { property:'FormattedID', value:feature_fid };
+        });
+        
+        if ( filters.length === 0 ) {
+            filters = [{property:'ObjectID',value:-1}]; // to deal with deferred even if we don't have to query
+        }
+        
+        var config = {
+            filters: Rally.data.wsapi.Filter.or(filters),
+            model  : 'PortfolioItem/Feature',
+            limit  : Infinity,
+            context: { project: null },
+            fetch  : ['FormattedID','Name','Parent',this.getSetting('productField')]
+        };
+        
+        this._loadWSAPIItems(config).then({
+            success: function(features) {
+                var features_by_fid = {};
+                Ext.Array.each(features, function(feature){
+                    features_by_fid[feature.get('FormattedID')] = feature;
+                });
+                
+                Ext.Array.each(rows, function(row) {
+                    
+                    var feature_id = row.__featureID;
+
+                    if ( !Ext.isEmpty(feature_id) ) {
+                        var feature = features_by_fid[feature_id];
+
+                        if ( feature && feature.get('Parent') ) {
+                            row.__epic = feature.get('Parent').FormattedID;
+                    
+                            var product = feature.get('Parent')[Rally.getApp().getSetting('productField')];
+                            if ( Ext.isEmpty(product) ) {
+                                product = '--';
+                            }
+                            row.__epic_product = product;
+                        }
+                    } 
+                     
+                });
+                deferred.resolve(rows);
+            },
+            failure: function(msg) {
+                deferred.reject(msg);
+            }
+        });
+        
+        return deferred.promise;
+    },
+    
     _updateEpicInformation: function(rows,stories_by_oid) {
         Ext.Array.each(rows, function(row){
             var wp_oid = row.WorkProduct;
             var story = stories_by_oid[wp_oid];
             
             if (story && story.get('Feature') && story.get('Feature').Parent) {
-                row['__epic'] = story.get('Feature').Parent.FormattedID;
+                row.__epic = story.get('Feature').Parent.FormattedID;
                 
                 var product = story.get('Feature').Parent[this.getSetting('productField')];
                 if ( Ext.isEmpty(product) ) {
                     product = '--';
                 }
-                row['__epic_product'] = product;
+                row.__epic_product = product;
+            } else if  (story && story.get('Parent') && story.get('Parent').Feature && story.get('Parent').Feature.Parent ) {
+                row.__epic = story.get('Parent').Feature.Parent.FormattedID
+                
+                var product = story.get('Parent').Feature.Parent[this.getSetting('productField')];
+                if ( Ext.isEmpty(product) ) {
+                    product = '--';
+                }
+                row.__epic_product = product;
+                
             } else {
-                row['__epic'] = "--";
-                row['__epic_product'] = '--';
+                row.__epic = "--";
+                row.__epic_product = '--';
             }
         },this);
     },
@@ -312,18 +404,18 @@ Ext.define("TSTimeTrackingByActualsChange", {
             var owner_oid = row.Owner;
             var owner = users_by_oid[owner_oid];
 
-            row['__owner'] = owner;
+            row.__owner = owner;
                         
             if (owner) {
-                row['__owner_cost_center'] = owner.get('CostCenter');
-                row['__owner_role'] = owner.get('Role');
-                row['__owner_department'] = owner.get('Department');
-                row['__owner_location'] = owner.get('OfficeLocation');
+                row.__owner_cost_center = owner.get('CostCenter');
+                row.__owner_role = owner.get('Role');
+                row.__owner_department = owner.get('Department');
+                row.__owner_location = owner.get('OfficeLocation');
             } else {
-                row['__owner_cost_center'] = '';
-                row['__owner_department'] = '';
-                row['__owner_location'] = '';
-                row['__owner_role'] = '';
+                row.__owner_cost_center = '';
+                row.__owner_department = '';
+                row.__owner_location = '';
+                row.__owner_role = '';
             }
 
         },this);
