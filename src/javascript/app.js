@@ -116,6 +116,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                             xtype:'container',
                             html :'No changes found'
                         });
+                        Rally.getApp().setLoading(false);
                         return;
                     }
 
@@ -528,14 +529,13 @@ Ext.define("TSTimeTrackingByActualsChange", {
         
         this.down('#display_box').removeAll();
         var store = Ext.create('Rally.data.custom.Store',{
-            data:rows,
-            pageSize: 30000
+            data:rows
         });
         
         this.down('#display_box').add({
             xtype:'rallygrid',
             store: store,
-            showPagingToolbar: false,
+            showPagingToolbar: true,
             columnCfgs: [
                 {dataIndex:'FormattedID', text:'Task Number', renderer: function(value, meta, record) {
                     var url = Rally.nav.Manager.getDetailUrl( '/task/' + record.get('ObjectID') );
