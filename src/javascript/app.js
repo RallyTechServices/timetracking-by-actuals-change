@@ -138,7 +138,10 @@ Ext.define("TSTimeTrackingByActualsChange", {
                             this._updateEpicInformation(rows,stories_by_oid);
                             this._updateOwnerInformation(rows,users_by_oid);
                             
-                            this._findMissingData(rows,stories_by_oid).then({
+                            Deft.Chain.pipeline([
+                                function() { return this._findMissingData(rows,stories_by_oid) },
+                                this._getThemeDataFromRows
+                            ],this).then({
                                 scope: this,
                                 success: function(rows) {
                                     this._addGrid(rows); 
@@ -176,7 +179,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 {property: '_PreviousValues.Actuals', operator: 'exists', value: true}
             ],
             fetch: ['_PreviousValues.Actuals','FormattedID','Owner','Actuals','Name','WorkProduct', this.getSetting('typeField')],
-            sorters: [{property:'_ValidFrom',direction:'ASC'}]
+            sorters: [{property:'_ValidFrom',direction:'ASC'}],
+            removeUnauthorizedSnapshots: true
         };
         return this._loadSnapshots(config);
         
@@ -295,6 +299,59 @@ Ext.define("TSTimeTrackingByActualsChange", {
             }
         });
         return deferred.promise;
+    },
+    
+    _getThemeDataFromRows: function(rows) {
+        var deferred = Ext.create('Deft.Deferred');
+        var epic_fids = Ext.Array.pluck(rows, '__epic');
+        var unique_epic_fids = Ext.Array.unique(epic_fids);
+        
+        var filters = Ext.Array.map(unique_epic_fids, function(epic_fid){
+            return { property:'FormattedID', value:epic_fid };
+        });
+        
+        if ( filters.length === 0 ) {
+            filters = [{property:'ObjectID',value:-1}]; // to deal with deferred even if we don't have to query
+        }
+        
+        var config = {
+            filters: Rally.data.wsapi.Filter.or(filters),
+            model  : 'PortfolioItem/Epic',
+            limit  : Infinity,
+            context: { project: null },
+            fetch  : ['FormattedID','Name','Parent']
+        };
+        
+        this._loadWSAPIItems(config).then({
+            success: function(epics) {
+                var epics_by_fid = {};
+                Ext.Array.each(epics, function(epic){
+                    epics_by_fid[epic.get('FormattedID')] = epic;
+                });
+                                
+                Ext.Array.each(rows, function(row) {
+                    var epic_id = row.__epic;
+
+                    row.__theme = "--";
+                    row.__theme_name = "--";
+                    
+                    if ( !Ext.isEmpty(epic_id) ) {
+                        var epic = epics_by_fid[epic_id];
+
+                        if ( epic && epic.get('Parent') ) {
+                            row.__theme = epic.get('Parent').FormattedID;
+                            row.__theme_name = epic.get('Parent').Name;
+                        }
+                    } 
+                     
+                });
+                deferred.resolve(rows);
+            },
+            failure: function(msg) {
+                deferred.reject(msg);
+            }
+        });
+        return deferred;
     },
     
     _findMissingData: function(rows, stories_by_oid) {
@@ -498,7 +555,9 @@ Ext.define("TSTimeTrackingByActualsChange", {
 
                 {dataIndex:'__delta', text:'Actual Time'},
                 {dataIndex:'__epic', text: 'Epic' },
-                {dataIndex: '__epic_product', text:'Product' }
+                {dataIndex: '__epic_product', text:'Product' },
+                {dataIndex:'__theme', text:'Theme ID'},
+                {dataIndex:'__theme_name', text: 'Theme Name'}
             ],
             listeners: {
                 scope: this,

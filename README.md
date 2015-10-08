@@ -4,12 +4,14 @@ An app that shows changes to Actuals entries over a period of time and traced
 back to an epic (2nd level PI).
 
 The settings box allows for choosing what field on tasks will hold the value for 
-that task's "Task Type" and a "Product" from the 2nd level PI.  
+that task's "Task Type" and a "Product" from the 2nd level PI.  If it has a second
+level PI (epic) and that item has a parent, it will show the Formatted ID from parent
+of the second level PI.  
 
 ## Development Notes
 
 * Requires lookback API
-* Assumes that the lowest level PI is called a Feature
+* Assumes that the PIs are called Feature / Epic / Theme
 * Uses settings for the fields.  The defaults are not custom fields so the thing
  doesn't fail horribly when the field doesn't exist.  
 * An example of "chunking" calls to WSAPI with sets of very very long filters
