@@ -14,7 +14,8 @@ of the second level PI.
 * Assumes that the PIs are called Feature / Epic / Theme
 * Uses settings for the fields.  The defaults are not custom fields so the thing
  doesn't fail horribly when the field doesn't exist.  
-* An example of "chunking" calls to WSAPI with sets of very very long filters
+* Does a second lookback call to get the current values of the custom field on Task (because it might have been added after the actuals value change).  Chose to do lookback because lookback gives back an object with just the fields you ask for, but wsapi gives back an object with fields defined and only those asked for filled in, which means that fields can be emptied out during the data merge.
+* An example of "chunking" calls to WSAPI/Lookback with sets of very very long filters
 * An example of using fileutils to get csv from a grid backed by a custom store -- 
 attempts to determine the kind of store backing the grid
 * An example of using border / fit so that the headers of the grid don't move
