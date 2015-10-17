@@ -29,9 +29,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         container.removeAll();
         
         var date_container = container.add({ xtype:'container', layout: { type:'vbox' } });
-        
         var spacer = container.add({ xtype: 'container', flex: 1});
-        
         var right_container = container.add({xtype:'container'});
         
         date_container.add({
@@ -140,7 +138,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
                             this._updateOwnerInformation(rows,users_by_oid);
                             
                             Deft.Chain.pipeline([
-                                function() { return this._findMissingData(rows,stories_by_oid) },
+                                function() { return this._findMissingData(rows,stories_by_oid); },
+                                function(rows) { return this._findCurrentTaskValues(rows); },
                                 this._getThemeDataFromRows
                             ],this).then({
                                 scope: this,
@@ -173,15 +172,14 @@ Ext.define("TSTimeTrackingByActualsChange", {
         var config = {
             filters: [
                 {property:'_TypeHierarchy', value:'Task'},
-                {property: '_ValidFrom',operator: '>=', value: start_date},
-                {property: '_ValidFrom',operator: '<=', value: end_date},
+                {property:'_ValidFrom',operator: '>=', value: start_date},
+                {property:'_ValidFrom',operator: '<=', value: end_date},
                 {property:'Actuals',operator:'>',value: 0},
                 {property:'_ProjectHierarchy', operator:'in', value: [this.getContext().getProject().ObjectID]},
-                {property: '_PreviousValues.Actuals', operator: 'exists', value: true}
+                {property:'_PreviousValues.Actuals', operator: 'exists', value: true}
             ],
             fetch: ['_PreviousValues.Actuals','FormattedID','Owner','Actuals','Name','WorkProduct', this.getSetting('typeField')],
-            sorters: [{property:'_ValidFrom',direction:'ASC'}],
-            removeUnauthorizedSnapshots: true
+            sorters: [{property:'_ValidFrom',direction:'ASC'}]
         };
         return this._loadSnapshots(config);
         
@@ -355,10 +353,83 @@ Ext.define("TSTimeTrackingByActualsChange", {
         return deferred;
     },
     
+    _findCurrentTaskValues: function(rows) {
+        // snapshots from lookback have the value of fields at the time the 
+        // snap was taken
+        var deferred = Ext.create('Deft.Deferred');
+        this.setLoading('Fetching current task data...');
+
+        var me = this;
+        var project_field = this.getSetting('typeField');
+        
+        var rows_by_oid = {};
+        Ext.Array.each(rows, function(row) {
+            rows_by_oid[row.ObjectID] = row;
+        });
+        
+        var task_oids = Ext.Array.pluck(rows,'ObjectID');
+
+//        var filter_array = Ext.Array.map(task_oids, function(task_oid) {
+//            return { property: 'ObjectID', value: task_oid };
+//        });
+        
+        this.logger.log("# of tasks to fetch:", task_oids.length);
+        
+        var filter_array = task_oids;
+        
+        var chunk_size = 300;
+        if ( !this.isExternal() ) {
+            chunk_size = 1000;
+        }
+        var array_for_filters = [];
+        while (filter_array.length > 0) {
+            array_for_filters.push(filter_array.splice(0, chunk_size));
+        }
+        
+            
+        var promises = [];
+        Ext.Array.each(array_for_filters,function(filters) {
+            //var filters: Rally.data.wsapi.Filter.or(filters),
+            var filters = [
+                {property:'_TypeHierarchy', value:'Task'},
+                {property:'ObjectID',operator:'in',value:filters},
+                {property: '__At',value: 'current'}
+            ];
+            
+            promises.push( function() {
+                var config = {
+                    //model  : 'Task',
+                    filters: filters,
+                    //limit  : Infinity,
+                    fetch  : ['Name',project_field],
+                    useHttpPost: true
+                };
+                //return me._loadWSAPIItems(config);
+                return me._loadSnapshots(config);
+            });
+        });
+        
+        
+        Deft.Chain.sequence(promises,this).then({
+            success: function(tasks) {
+                Ext.Array.each(Ext.Array.flatten(tasks), function(task){
+                    Ext.apply(rows_by_oid[task.get('ObjectID')], task.getData());
+                });
+                deferred.resolve(Ext.Object.getValues(rows_by_oid));
+            },
+            failure: function(msg) {
+                deferred.reject(msg);
+            }
+        });
+        
+        return deferred.promise;
+    },
+    
     _findMissingData: function(rows, stories_by_oid) {
         // sometimes the data seems to lose its connection to its feature or to the epic above it
         var deferred = Ext.create('Deft.Deferred');
-        
+        this.setLoading('Fetching missing data elements...');
+
         // get the stories that we don't have the epics for
         var features_missing_epics = [];
         
@@ -485,7 +556,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
         this.logger.log("Starting snapshot load");
         
         var default_config = {
-            fetch: ['ObjectID']
+            fetch: ['ObjectID'],
+            removeUnauthorizedSnapshots: true
         };
         
         Ext.create('Rally.data.lookback.SnapshotStore', Ext.merge(default_config,config)).load({
