@@ -3,11 +3,11 @@
 <head>
     <title>Time Tracking By Actuals Change</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat Oct 17 2015 09:18:44 GMT-0700 (PDT) -->
+    <!--  Build Date: Tue Nov 24 2015 17:29:49 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Oct 17 2015 09:18:44 GMT-0700 (PDT)";
-        var CHECKSUM = 62574176944;
+        var APP_BUILD_DATE = "Tue Nov 24 2015 17:29:49 GMT-0800 (PST)";
+        var CHECKSUM = 72274810774;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -222,7 +222,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 scope: this,
                 change: function(db) {
                     this.start_date = db.getValue();
-                    this._updateData();
                 }
             }
         });
@@ -239,6 +238,19 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 scope: this,
                 change: function(db) {
                     this.end_date = db.getValue();
+                    
+                }
+            }
+        });
+        
+        date_container.add({
+            xtype:'rallybutton',
+            itemId:'update_button',
+            text: '<span class="icon-snapshot"> </span>',
+            disabled: false,
+            listeners: {
+                scope: this,
+                click: function() {
                     this._updateData();
                 }
             }
@@ -274,7 +286,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 start_date = holder;
             }
             
-            this.logger.log("From:", start_date, " to:", end_date);
             this.setLoading("Loading actuals...");
 
             this._getTasksThatChanged(start_date, end_date).then({
@@ -303,25 +314,27 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     
                     Deft.Chain.sequence([
                         function() { return this._getStoriesByOID(rows); },
-                        function() { return this._getOwnersByOID(rows); }
+                        function() { return this._getOwnersByOID(rows); },
+                        function() { return this._getDefectsByOID(rows); }
                     ],this).then({
                         scope: this,
                         success: function(results) {
                             var stories_by_oid = results[0];
 
                             var users_by_oid   = results[1];
+                            var defects_by_oid = results[2];
                             this.setLoading('Calculating...');
                             
-                            this._updateEpicInformation(rows,stories_by_oid);
+                            this._updateEpicInformation(rows,stories_by_oid,defects_by_oid);
                             this._updateOwnerInformation(rows,users_by_oid);
                             
                             Deft.Chain.pipeline([
-                                function() { return this._findMissingData(rows,stories_by_oid); },
-                                function(rows) { return this._findCurrentTaskValues(rows); },
-                                this._getThemeDataFromRows
+                                function() {      return this._findMissingData(rows,stories_by_oid); },
+                                function(rows) {  return this._findCurrentTaskValues(rows); },
+                                function(rows) {  return this._getThemeDataFromRows(rows); }
                             ],this).then({
                                 scope: this,
-                                success: function(rows) {
+                                success: function(rows) {                                    
                                     this._addGrid(rows); 
                                     this.setLoading(false);
                                 },
@@ -347,6 +360,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
     },
     
     _getTasksThatChanged: function(start_date,end_date) {
+        this.logger.log("_getTasksThatChanged", start_date, end_date);
+        
         var config = {
             filters: [
                 {property:'_TypeHierarchy', value:'Task'},
@@ -356,7 +371,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 {property:'_ProjectHierarchy', operator:'in', value: [this.getContext().getProject().ObjectID]},
                 {property:'_PreviousValues.Actuals', operator: 'exists', value: true}
             ],
-            fetch: ['_PreviousValues.Actuals','FormattedID','Owner','Actuals','Name','WorkProduct', this.getSetting('typeField')],
+            fetch: ['_PreviousValues.Actuals','FormattedID','Owner','Actuals','Name','WorkProduct', this.getSetting('typeField'), '_User'],
             sorters: [{property:'_ValidFrom',direction:'ASC'}]
         };
         return this._loadSnapshots(config);
@@ -377,8 +392,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 };
             }
             row_hash[oid].__delta = row_hash[oid].__delta + delta;
-            
-            // apply the most current values of these records to the row
+            // apply the most current values of the records to the row
             Ext.apply(row_hash[oid], snap.getData());
         },this);
         
@@ -410,7 +424,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     filters: Rally.data.wsapi.Filter.or(filters),
                     model  : 'HierarchicalRequirement',
                     limit  : Infinity,
-                    fetch  : ['FormattedID','Name','Feature','Parent',me.getSetting('productField')]
+                    fetch  : ['FormattedID','Name','Feature','Parent',me.getSetting('productField'),'Iteration','c_WorkType']
                 };
                 return me._loadWSAPIItems(config);
             });
@@ -432,10 +446,57 @@ Ext.define("TSTimeTrackingByActualsChange", {
         return deferred.promise;
     },
     
+    _getDefectsByOID: function(rows) {
+        var deferred = Ext.create('Deft.Deferred');
+        var me = this;
+        var workproducts = Ext.Array.pluck(rows,'WorkProduct');
+        var unique_workproducts = Ext.Array.unique(workproducts);
+                
+        var filter_array = Ext.Array.map(unique_workproducts, function(wp) {
+            return { property: 'ObjectID', value: wp };
+        });
+        
+        this.logger.log("# of defects to fetch:", unique_workproducts.length);
+        
+        var chunk_size = 100;
+        var array_of_filters = [];
+        while (filter_array.length > 0) {
+            array_of_filters.push(filter_array.splice(0, chunk_size));
+        }
+            
+        var promises = [];
+        Ext.Array.each(array_of_filters,function(filters) {
+            promises.push( function() {
+                var config = {
+                    filters: Rally.data.wsapi.Filter.or(filters),
+                    model  : 'Defect',
+                    limit  : Infinity,
+                    fetch  : ['FormattedID','Name','Feature','Parent',me.getSetting('productField'),'Iteration','c_WorkType','Requirement']
+                };
+                return me._loadWSAPIItems(config);
+            });
+        });
+        
+        
+        Deft.Chain.sequence(promises,this).then({
+            success: function(defects) {
+                var defects_by_oid = {};
+                Ext.Array.each(Ext.Array.flatten(defects), function(defect){
+                    defects_by_oid[defect.get('ObjectID')] = defect;
+                });
+                deferred.resolve(defects_by_oid);
+            },
+            failure: function(msg) {
+                deferred.reject(msg);
+            }
+        });
+        return deferred.promise;
+    },
+    
     _getOwnersByOID: function(rows) {
         var deferred = Ext.create('Deft.Deferred');
         var me = this;
-        var owners = Ext.Array.pluck(rows,'Owner');
+        var owners = Ext.Array.pluck(rows,'_User');
         var unique_owners = Ext.Array.unique(owners);
         this.logger.log("# of owners to fetch:", unique_owners.length);
 
@@ -480,6 +541,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
     
     _getThemeDataFromRows: function(rows) {
         var deferred = Ext.create('Deft.Deferred');
+        this.logger.log('_getThemeDataFromRows');
+        
         var epic_fids = Ext.Array.pluck(rows, '__epic');
         var unique_epic_fids = Ext.Array.unique(epic_fids);
         
@@ -509,15 +572,20 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 Ext.Array.each(rows, function(row) {
                     var epic_id = row.__epic;
 
+                    row.__epic_name = "--";
                     row.__theme = "--";
                     row.__theme_name = "--";
                     
                     if ( !Ext.isEmpty(epic_id) ) {
                         var epic = epics_by_fid[epic_id];
 
-                        if ( epic && epic.get('Parent') ) {
+                        //if ( epic && epic.get('Parent') ) {
+                        if ( epic ) {
+                            row.__epic_name = epic.get('Name');
+                            if ( epic.get('Parent') ) {
                             row.__theme = epic.get('Parent').FormattedID;
                             row.__theme_name = epic.get('Parent').Name;
+                            }
                         }
                     } 
                      
@@ -534,6 +602,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     _findCurrentTaskValues: function(rows) {
         // snapshots from lookback have the value of fields at the time the 
         // snap was taken
+        this.logger.log('_findCurrentTaskValues',rows.length);
         var deferred = Ext.create('Deft.Deferred');
         this.setLoading('Fetching current task data...');
 
@@ -604,6 +673,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     },
     
     _findMissingData: function(rows, stories_by_oid) {
+        this.logger.log('_findMissingData',rows.length);
         // sometimes the data seems to lose its connection to its feature or to the epic above it
         var deferred = Ext.create('Deft.Deferred');
         this.setLoading('Fetching missing data elements...');
@@ -612,15 +682,35 @@ Ext.define("TSTimeTrackingByActualsChange", {
         var features_missing_epics = [];
         
         Ext.Array.each(rows, function(row) {
-            if ( row.__epic != "--" ) {
-                return;
-            }
+
             var wp_oid = row.WorkProduct;
             var story = stories_by_oid[wp_oid];
+
             if ( story && story.get('Feature') ) {
+                row.__story_name = story.get('Name');
+                row.__story = story.get('FormattedID');
                 var feature_id = story.get('Feature').FormattedID;
                 row.__featureID = feature_id;
-                features_missing_epics.push(feature_id);
+                
+                if ( row.__epic == "--" ) {
+                    features_missing_epics.push(feature_id);
+                }
+                
+            }
+            else{
+                row.__story_name = "--";
+                row.__story = "--";
+                row.__iteration = "--";
+                row.__storyType = "--";
+            }
+            if(story){
+                row.__story_name = story.get('Name');
+                row.__story = story.get('FormattedID');
+                row.__storyType = story.get('c_WorkType');
+            }
+            if(story && story.get('Iteration'))
+            {
+                row.__iteration = story.get('Iteration').Name;
             }
         });
         
@@ -677,23 +767,33 @@ Ext.define("TSTimeTrackingByActualsChange", {
         return deferred.promise;
     },
     
-    _updateEpicInformation: function(rows,stories_by_oid) {
+    _updateEpicInformation: function(rows,stories_by_oid,defects_by_oid) {
+        this.logger.log('_updateEpicInformation');
         Ext.Array.each(rows, function(row){
             var wp_oid = row.WorkProduct;
             var story = stories_by_oid[wp_oid];
+            var defect = defects_by_oid[wp_oid];
+            if(story){
+                story = story.getData();
+            }
+            else if(defect && defect.get('Requirement')){
+                story = defect.get('Requirement');
+            }           
             
-            if (story && story.get('Feature') && story.get('Feature').Parent) {
-                row.__epic = story.get('Feature').Parent.FormattedID;
-                
-                var product = story.get('Feature').Parent[this.getSetting('productField')];
+            if (story && story.Feature && story.Feature.Parent) {
+                row.__epic = story.Feature.Parent.FormattedID;
+                var product = story.Feature.Parent[this.getSetting('productField')];
+                row.__story_name = story.Name;
+                row.__story = story.FormattedID;
                 if ( Ext.isEmpty(product) ) {
                     product = '--';
                 }
                 row.__epic_product = product;
-            } else if  (story && story.get('Parent') && story.get('Parent').Feature && story.get('Parent').Feature.Parent ) {
-                row.__epic = story.get('Parent').Feature.Parent.FormattedID
-                
-                var product = story.get('Parent').Feature.Parent[this.getSetting('productField')];
+            } else if  (story && story.Parent && story.Parent.Feature && story.Parent.Feature.Parent ) {
+                row.__epic = story.Parent.Feature.Parent.FormattedID
+                row.__story_name = story.Name;
+                row.__story = story.FormattedID;
+                var product = story.Parent.Feature.Parent[this.getSetting('productField')];
                 if ( Ext.isEmpty(product) ) {
                     product = '--';
                 }
@@ -702,13 +802,17 @@ Ext.define("TSTimeTrackingByActualsChange", {
             } else {
                 row.__epic = "--";
                 row.__epic_product = '--';
+                row.__story = '--';
+                row.__story_name = '--';
             }
         },this);
     },
     
     _updateOwnerInformation: function(rows,users_by_oid) {
+        this.logger.log('_updateOwnerInformation');
+        
         Ext.Array.each(rows, function(row){
-            var owner_oid = row.Owner;
+            var owner_oid = row._User;
             var owner = users_by_oid[owner_oid];
 
             row.__owner = owner;
@@ -731,7 +835,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     _loadSnapshots: function(config) {
         var deferred = Ext.create('Deft.Deferred');
         var me = this;
-        this.logger.log("Starting snapshot load");
+        this.logger.log("Starting snapshot load", config.filters);
         
         var default_config = {
             fetch: ['ObjectID'],
@@ -776,6 +880,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     
     _addGrid: function(rows){
         this.logger.log('_addGrid', rows);
+        Ext.Array.each(rows, function(row){ console.log('row:', row.ObjectID, row);});
         
         this.down('#display_box').removeAll();
         var store = Ext.create('Rally.data.custom.Store',{
@@ -791,21 +896,31 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     var url = Rally.nav.Manager.getDetailUrl( '/task/' + record.get('ObjectID') );
                     return Ext.String.format("<a href={0} target='_blank'>{1}</a>", url, value);
                 }, _csvIgnoreRender: true},
-                {dataIndex: this.getSetting('typeField'), text: 'Task Type' },
+                {dataIndex: this.getSetting('typeField'), text: 'Task Type' , renderer:function(value,meta,record){
+                    if(!Ext.isEmpty(value)){
+                        return value;
+                    }
+                    return record.get("__storyType");
+                }
+                },
                 {dataIndex:'__owner', text:'Owner', renderer: function(v) {
                     if ( Ext.isEmpty(v) ) {
                         return "--";
                     }
                     return v.get('_refObjectName');
                 }},
-                {dataIndex:'__owner_cost_center', text:'Cost Center' },
+                //{dataIndex:'__owner_cost_center', text:'Cost Center' },
                 {dataIndex:'__owner_department', text:'Department' },
                 {dataIndex:'__owner_location', text:'Office Location' },
                 {dataIndex:'__owner_role', text:'Role' },
 
                 {dataIndex:'__delta', text:'Actual Time'},
-                {dataIndex:'__epic', text: 'Epic' },
                 {dataIndex: '__epic_product', text:'Product' },
+                {dataIndex:'__story', text: 'Story ID' },
+                {dataIndex:'__story_name', text: 'Story Name'},
+                {dataIndex:'__iteration', text: 'Sprint'},
+                {dataIndex:'__epic', text: 'Epic ID'},
+                {dataIndex:'__epic_name', text: 'Epic Name'},
                 {dataIndex:'__theme', text:'Theme ID'},
                 {dataIndex:'__theme_name', text: 'Theme Name'}
             ],
@@ -889,7 +1004,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 if (  attribute_type == "BOOLEAN" ) {
                     return true;
                 }
-                if ( attribute_type == "STRING" || attribute_type == "STATE" ) {
+                if ( attribute_type == "STRING" || attribute_type == "State" ) {
                     if ( field.get('fieldDefinition').attributeDefinition.Constrained ) {
                         return true;
                     }
@@ -940,7 +1055,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
         }];
     }
 });
-
 /* Blob.js
  * A Blob implementation.
  * 2014-05-31
