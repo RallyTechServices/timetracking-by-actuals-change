@@ -5,6 +5,9 @@ Ext.define("TSTimeTrackingByActualsChange", {
     defaults: { margin: 10 },
     layout: { type: 'border' }, 
     
+    feature_model: 'PortfolioItem/Feature',
+    epic_model: 'PortfolioItem/Initiative',
+    
     items: [
         {xtype:'container',itemId:'selector_box', region: 'north', layout: { type: 'hbox' }},
         {xtype:'container',itemId:'display_box', region: 'center', layout: { type: 'fit' } }
@@ -378,7 +381,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         
         var config = {
             filters: Rally.data.wsapi.Filter.or(filters),
-            model  : 'PortfolioItem/Epic',
+            model  : this.epic_model,
             limit  : Infinity,
             context: { project: null },
             fetch  : ['FormattedID','Name','Parent']
@@ -504,13 +507,10 @@ Ext.define("TSTimeTrackingByActualsChange", {
         var features_missing_epics = [];
         
         Ext.Array.each(rows, function(row) {
-
             var wp_oid = row.WorkProduct;
             var story = stories_by_oid[wp_oid];
 
             if ( story && story.get('Feature') ) {
-                row.__story_name = story.get('Name');
-                row.__story = story.get('FormattedID');
                 var feature_id = story.get('Feature').FormattedID;
                 row.__featureID = feature_id;
                 
@@ -518,21 +518,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     features_missing_epics.push(feature_id);
                 }
                 
-            }
-            else{
-                row.__story_name = "--";
-                row.__story = "--";
-                row.__iteration = "--";
-                row.__storyType = "--";
-            }
-            if(story){
-                row.__story_name = story.get('Name');
-                row.__story = story.get('FormattedID');
-                row.__storyType = story.get('c_WorkType');
-            }
-            if(story && story.get('Iteration'))
-            {
-                row.__iteration = story.get('Iteration').Name;
             }
         });
         
@@ -547,7 +532,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         
         var config = {
             filters: Rally.data.wsapi.Filter.or(filters),
-            model  : 'PortfolioItem/Feature',
+            model  : this.feature_model,
             limit  : Infinity,
             context: { project: null },
             fetch  : ['FormattedID','Name','Parent',this.getSetting('productField')]
@@ -590,7 +575,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
     },
     
     _updateEpicInformation: function(rows,stories_by_oid,defects_by_oid) {
-        this.logger.log('_updateEpicInformation');
+        this.logger.log('_updateEpicInformation', rows);
         Ext.Array.each(rows, function(row){
             var wp_oid = row.WorkProduct;
             var story = stories_by_oid[wp_oid];
@@ -600,32 +585,46 @@ Ext.define("TSTimeTrackingByActualsChange", {
             }
             else if(defect && defect.get('Requirement')){
                 story = defect.get('Requirement');
-            }           
+            }
             
-            if (story && story.Feature && story.Feature.Parent) {
-                row.__epic = story.Feature.Parent.FormattedID;
-                var product = story.Feature.Parent[this.getSetting('productField')];
+            this.logger.log('story', story);
+            // default values:
+            row.__epic = "--";
+            row.__epic_product = '--';
+            row.__story = '--';
+            row.__story_name = '--';
+            row.__story_type = "--";
+            
+            if ( story ) {
                 row.__story_name = story.Name;
                 row.__story = story.FormattedID;
-                if ( Ext.isEmpty(product) ) {
-                    product = '--';
-                }
-                row.__epic_product = product;
-            } else if  (story && story.Parent && story.Parent.Feature && story.Parent.Feature.Parent ) {
-                row.__epic = story.Parent.Feature.Parent.FormattedID
-                row.__story_name = story.Name;
-                row.__story = story.FormattedID;
-                var product = story.Parent.Feature.Parent[this.getSetting('productField')];
-                if ( Ext.isEmpty(product) ) {
-                    product = '--';
-                }
-                row.__epic_product = product;
+                row.__story_type = story.c_WorkType;
                 
-            } else {
-                row.__epic = "--";
-                row.__epic_product = '--';
-                row.__story = '--';
-                row.__story_name = '--';
+                if(Ext.isEmpty(defect) && story && story.Iteration)
+                {
+                    row.__iteration = story.Iteration.Name;
+                }
+                if ( defect && defect.Iteration ) {
+                    row.__iteration = defect.Iteration.Name;
+                }
+                
+                if (story && story.Feature && story.Feature.Parent) {
+                    row.__epic = story.Feature.Parent.FormattedID;
+                    var product = story.Feature.Parent[this.getSetting('productField')];
+
+                    if ( Ext.isEmpty(product) ) {
+                        product = '--';
+                    }
+                    row.__epic_product = product;
+                } else if  ( story.Parent && story.Parent.Feature && story.Parent.Feature.Parent ) {
+                    row.__epic = story.Parent.Feature.Parent.FormattedID
+                    var product = story.Parent.Feature.Parent[this.getSetting('productField')];
+                    if ( Ext.isEmpty(product) ) {
+                        product = '--';
+                    }
+                    row.__epic_product = product;
+                }
+                
             }
         },this);
     },
@@ -722,7 +721,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     if(!Ext.isEmpty(value)){
                         return value;
                     }
-                    return record.get("__storyType");
+                    return record.get("__story_type");
                 }
                 },
                 {dataIndex:'__owner', text:'Owner', renderer: function(v) {
