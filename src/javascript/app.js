@@ -5,8 +5,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
     defaults: { margin: 10 },
     layout: { type: 'border' }, 
     
-    feature_model: 'PortfolioItem/Feature',
-    epic_model: 'PortfolioItem/Initiative',
+    feature_path: 'PortfolioItem/Feature',
+    epic_path: 'PortfolioItem/Epic',
     
     items: [
         {xtype:'container',itemId:'selector_box', region: 'north', layout: { type: 'hbox' }},
@@ -25,7 +25,15 @@ Ext.define("TSTimeTrackingByActualsChange", {
     
     launch: function() {
         var me = this;
-        this._addSelectors(this.down('#selector_box'));
+        this._getPortfolioItemNames().then({
+            scope: this,
+            success: function(types) {
+                this.feature_path = types[0].get('TypePath');
+                this.epic_path = types[1].get('TypePath');
+                
+                this._addSelectors(this.down('#selector_box'));
+            }
+        });
     },
     
     _addSelectors: function(container) {
@@ -381,7 +389,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         
         var config = {
             filters: Rally.data.wsapi.Filter.or(filters),
-            model  : this.epic_model,
+            model  : this.epic_path,
             limit  : Infinity,
             context: { project: null },
             fetch  : ['FormattedID','Name','Parent']
@@ -532,7 +540,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         
         var config = {
             filters: Rally.data.wsapi.Filter.or(filters),
-            model  : this.feature_model,
+            model  : this.feature_path,
             limit  : Infinity,
             context: { project: null },
             fetch  : ['FormattedID','Name','Parent',this.getSetting('productField')]
@@ -594,6 +602,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
             row.__story = '--';
             row.__story_name = '--';
             row.__story_type = "--";
+            row.__iteration = "--";
             
             if ( story ) {
                 row.__story_name = story.Name;
@@ -701,7 +710,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
     
     _addGrid: function(rows){
         this.logger.log('_addGrid', rows);
-        Ext.Array.each(rows, function(row){ console.log('row:', row.ObjectID, row);});
         
         this.down('#display_box').removeAll();
         var store = Ext.create('Rally.data.custom.Store',{
@@ -781,6 +789,17 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 
             }
         }).always(function() { me.setLoading(false); });
+    },
+    
+    _getPortfolioItemNames: function() {
+        var config = {
+            model: 'TypeDefinition', 
+            fetch: ["TypePath","Ordinal"],
+            filters: [{property:'TypePath', operator:'contains', value:'PortfolioItem/'}],
+            sorters: [{property:'Ordinal',direction:'ASC'}]
+        };
+        
+        return this._loadWSAPIItems(config);
     },
     
     getOptions: function() {
