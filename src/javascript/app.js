@@ -143,26 +143,27 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     Rally.getApp().setLoading("Gathering current information...");
 
                     var rows = this._getTasksFromSnaps(snaps);
-                    this.logger.log("Number of tasks:", rows.length, snaps);
-                    this._findCurrentTaskValues(rows).then({
+
+                    Deft.Chain.pipeline([
+                        function() { return this._findCurrentTaskValues(rows); },
+                        function(rows) { return this._setDefectsByOID(rows); }
+                    ],this).then({
                         scope: this,
                         success: function(rows) {
+                            this.logger.log('rows with defects: ', rows);
                             
                             Rally.getApp().setLoading("Gathering related information...");
                             Deft.Chain.sequence([
                                 function() { return this._getStoriesByOID(rows); },
-                                function() { return this._getOwnersByOID(rows); },
-                                function() { return this._getDefectsByOID(rows); }
+                                function() { return this._getOwnersByOID(rows); }
                             ],this).then({
                                 scope: this,
                                 success: function(results) {
                                     var stories_by_oid = results[0];
-        
                                     var users_by_oid   = results[1];
-                                    var defects_by_oid = results[2];
                                     this.setLoading('Calculating...');
                                     
-                                    this._updateEpicInformation(rows,stories_by_oid,defects_by_oid);
+                                    this._updateEpicInformation(rows,stories_by_oid);
                                     this._updateOwnerInformation(rows,users_by_oid);
                                     
                                     Deft.Chain.pipeline([
@@ -284,7 +285,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         return deferred.promise;
     },
     
-    _getDefectsByOID: function(rows) {
+    _setDefectsByOID: function(rows) {
         var deferred = Ext.create('Deft.Deferred');
         var me = this;
         var workproducts = Ext.Array.pluck(rows,'WorkProduct');
@@ -309,12 +310,11 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     filters: Rally.data.wsapi.Filter.or(filters),
                     model  : 'Defect',
                     limit  : Infinity,
-                    fetch  : ['FormattedID','Name','Feature','Parent',me.getSetting('productField'),'Iteration','c_WorkType','Requirement']
+                    fetch  : ['FormattedID','ObjectID','Name','Feature','Parent',me.getSetting('productField'),'Iteration','c_WorkType','Requirement']
                 };
                 return me._loadWSAPIItems(config);
             });
         });
-        
         
         Deft.Chain.sequence(promises,this).then({
             success: function(defects) {
@@ -322,7 +322,18 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 Ext.Array.each(Ext.Array.flatten(defects), function(defect){
                     defects_by_oid[defect.get('ObjectID')] = defect;
                 });
-                deferred.resolve(defects_by_oid);
+                
+                Ext.Array.each(rows, function(row) {
+                    var wp_oid = row.WorkProduct;
+                    if ( ! Ext.isEmpty(defects_by_oid[wp_oid]) ) {
+                        row.__Defect = defects_by_oid[wp_oid].getData();
+                        if ( row.__Defect.Requirement && row.__Defect.Requirement.ObjectID ) {
+                            row.WorkProduct = row.__Defect.Requirement.ObjectID;
+                        }
+                    }
+                
+                });
+                deferred.resolve(rows);
             },
             failure: function(msg) {
                 deferred.reject(msg);
@@ -583,17 +594,15 @@ Ext.define("TSTimeTrackingByActualsChange", {
         return deferred.promise;
     },
     
-    _updateEpicInformation: function(rows,stories_by_oid,defects_by_oid) {
+    _updateEpicInformation: function(rows,stories_by_oid) {
         this.logger.log('_updateEpicInformation', rows);
         Ext.Array.each(rows, function(row){
             var wp_oid = row.WorkProduct;
             var story = stories_by_oid[wp_oid];
-            var defect = defects_by_oid[wp_oid];
+            var defect = row.__Defect;
+            
             if(story){
                 story = story.getData();
-            }
-            else if(defect && defect.get('Requirement')){
-                story = defect.get('Requirement');
             }
             
             this.logger.log('story', story);
@@ -633,17 +642,17 @@ Ext.define("TSTimeTrackingByActualsChange", {
                         product = '--';
                     }
                     row.__epic_product = product;
-//                } else if ( story.Parent && story.Parent.Feature ) {
-//                    var product = story.Parent.Feature[this.getSetting('productField')];
-//                    if ( story.Iteration ) {
-//                        row.__iteration = story.Iteration.Name;
-//                    }
-//                    
-//                    if ( Ext.isEmpty(product) ) {
-//                        product = "--";
-//                    }
-//                    
-//                    row.__epic_product = product;
+                } else if ( story.Parent && story.Parent.Feature ) {
+                    var product = story.Parent.Feature[this.getSetting('productField')];
+                    if ( story.Iteration ) {
+                        row.__iteration = story.Iteration.Name;
+                    }
+                    
+                    if ( Ext.isEmpty(product) ) {
+                        product = "--";
+                    }
+                    
+                    row.__epic_product = product;
                 }
                 
             }
