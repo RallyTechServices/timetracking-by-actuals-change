@@ -140,48 +140,53 @@ Ext.define("TSTimeTrackingByActualsChange", {
                         return;
                     }
 
-                    Rally.getApp().setLoading("Gathering related information...");
+                    Rally.getApp().setLoading("Gathering current information...");
 
                     var rows = this._getTasksFromSnaps(snaps);
-                    this.logger.log("Number of tasks:", rows.length);
-                    
-                    Deft.Chain.sequence([
-                        function() { return this._getStoriesByOID(rows); },
-                        function() { return this._getOwnersByOID(rows); },
-                        function() { return this._getDefectsByOID(rows); }
-                    ],this).then({
+                    this.logger.log("Number of tasks:", rows.length, snaps);
+                    this._findCurrentTaskValues(rows).then({
                         scope: this,
-                        success: function(results) {
-                            var stories_by_oid = results[0];
-
-                            var users_by_oid   = results[1];
-                            var defects_by_oid = results[2];
-                            this.setLoading('Calculating...');
+                        success: function(rows) {
                             
-                            this._updateEpicInformation(rows,stories_by_oid,defects_by_oid);
-                            this._updateOwnerInformation(rows,users_by_oid);
-                            
-                            Deft.Chain.pipeline([
-                                function() {      return this._findMissingData(rows,stories_by_oid); },
-                                function(rows) {  return this._findCurrentTaskValues(rows); },
-                                function(rows) {  return this._getThemeDataFromRows(rows); }
+                            Rally.getApp().setLoading("Gathering related information...");
+                            Deft.Chain.sequence([
+                                function() { return this._getStoriesByOID(rows); },
+                                function() { return this._getOwnersByOID(rows); },
+                                function() { return this._getDefectsByOID(rows); }
                             ],this).then({
                                 scope: this,
-                                success: function(rows) {                                    
-                                    this._addGrid(rows); 
-                                    this.setLoading(false);
+                                success: function(results) {
+                                    var stories_by_oid = results[0];
+        
+                                    var users_by_oid   = results[1];
+                                    var defects_by_oid = results[2];
+                                    this.setLoading('Calculating...');
+                                    
+                                    this._updateEpicInformation(rows,stories_by_oid,defects_by_oid);
+                                    this._updateOwnerInformation(rows,users_by_oid);
+                                    
+                                    Deft.Chain.pipeline([
+                                        function() {      return this._findMissingData(rows,stories_by_oid); },
+                                        function(rows) {  return this._getThemeDataFromRows(rows); }
+                                    ],this).then({
+                                        scope: this,
+                                        success: function(rows) {                                    
+                                            this._addGrid(rows); 
+                                            this.setLoading(false);
+                                        },
+                                        failure: function(msg) {
+                                            this.setLoading(false);
+                                            Ext.Msg.alert('Problem loading ancillary data',msg);
+                                        }
+                                    });
                                 },
                                 failure: function(msg) {
                                     this.setLoading(false);
-                                    Ext.Msg.alert('Problem loading ancillary data',msg);
+                                    Ext.Msg.alert("Problem loading ancillary data", msg);
                                 }
+                            
                             });
-                        },
-                        failure: function(msg) {
-                            this.setLoading(false);
-                            Ext.Msg.alert("Problem loading ancillary data", msg);
                         }
-                    
                     });
                 }
             });
@@ -284,7 +289,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         var me = this;
         var workproducts = Ext.Array.pluck(rows,'WorkProduct');
         var unique_workproducts = Ext.Array.unique(workproducts);
-                
+
         var filter_array = Ext.Array.map(unique_workproducts, function(wp) {
             return { property: 'ObjectID', value: wp };
         });
@@ -448,10 +453,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
         });
         
         var task_oids = Ext.Array.pluck(rows,'ObjectID');
-
-//        var filter_array = Ext.Array.map(task_oids, function(task_oid) {
-//            return { property: 'ObjectID', value: task_oid };
-//        });
         
         this.logger.log("# of tasks to fetch:", task_oids.length);
         
@@ -481,7 +482,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     //model  : 'Task',
                     filters: filters,
                     //limit  : Infinity,
-                    fetch  : ['Name',project_field],
+                    fetch  : ['Name',project_field,'WorkProduct'],
                     useHttpPost: true
                 };
                 //return me._loadWSAPIItems(config);
@@ -632,6 +633,17 @@ Ext.define("TSTimeTrackingByActualsChange", {
                         product = '--';
                     }
                     row.__epic_product = product;
+//                } else if ( story.Parent && story.Parent.Feature ) {
+//                    var product = story.Parent.Feature[this.getSetting('productField')];
+//                    if ( story.Iteration ) {
+//                        row.__iteration = story.Iteration.Name;
+//                    }
+//                    
+//                    if ( Ext.isEmpty(product) ) {
+//                        product = "--";
+//                    }
+//                    
+//                    row.__epic_product = product;
                 }
                 
             }
