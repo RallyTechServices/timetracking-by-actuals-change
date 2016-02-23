@@ -490,13 +490,10 @@ Ext.define("TSTimeTrackingByActualsChange", {
             
             promises.push( function() {
                 var config = {
-                    //model  : 'Task',
                     filters: filters,
-                    //limit  : Infinity,
                     fetch  : ['Name',project_field,'WorkProduct'],
                     useHttpPost: true
                 };
-                //return me._loadWSAPIItems(config);
                 return me._loadSnapshots(config);
             });
         });
@@ -507,6 +504,20 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 Ext.Array.each(Ext.Array.flatten(tasks), function(task){
                     Ext.apply(rows_by_oid[task.get('ObjectID')], task.getData());
                 });
+                
+                var found_tasks_by_oid = {};
+                Ext.Array.each(Ext.Array.flatten(tasks), function(task) { found_tasks_by_oid[task.get('ObjectID')] = task; });
+                
+                Ext.Array.each(rows, function(row) {
+                    var oid = row.ObjectID;
+                     
+                    if ( Ext.isEmpty(found_tasks_by_oid[oid]) ) {
+                        row.__Deleted = true;
+                    } else {
+                        row.__Deleted = false;
+                    }
+                });
+                
                 deferred.resolve(Ext.Object.getValues(rows_by_oid));
             },
             failure: function(msg) {
@@ -605,7 +616,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 story = story.getData();
             }
             
-            this.logger.log('story', story);
             // default values:
             row.__epic = "--";
             row.__epic_product = '--';
@@ -744,6 +754,9 @@ Ext.define("TSTimeTrackingByActualsChange", {
             columnCfgs: [
                 {dataIndex:'FormattedID', text:'Task Number', renderer: function(value, meta, record) {
                     var url = Rally.nav.Manager.getDetailUrl( '/task/' + record.get('ObjectID') );
+                    if ( record.get('__Deleted') ) { 
+                        return value + " (del)";
+                    }
                     return Ext.String.format("<a href={0} target='_blank'>{1}</a>", url, value);
                 }, _csvIgnoreRender: true},
                 {dataIndex: this.getSetting('typeField'), text: 'Task Type' , renderer:function(value,meta,record){
