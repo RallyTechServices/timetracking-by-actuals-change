@@ -211,7 +211,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 {property:'_PreviousValues.Actuals', operator: 'exists', value: true}
             ],
             fetch: ['_PreviousValues.Actuals','FormattedID','Owner','Actuals','Name','WorkProduct', this.getSetting('typeField'), '_User'],
-            sorters: [{property:'_ValidFrom',direction:'ASC'}]
+            sorters: [{property:'_ValidFrom',direction:'ASC'}],
+            limit: 'Infinity'
         };
         return this._loadSnapshots(config);
         

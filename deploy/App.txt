@@ -3,11 +3,11 @@
 <head>
     <title>Time Tracking By Actuals Change</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Mon Feb 22 2016 17:36:22 GMT-0800 (PST) -->
+    <!--  Build Date: Fri Sep 09 2016 10:36:17 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Mon Feb 22 2016 17:36:22 GMT-0800 (PST)";
-        var CHECKSUM = 75565036498;
+        var APP_BUILD_DATE = "Fri Sep 09 2016 10:36:17 GMT-0700 (PDT)";
+        var CHECKSUM = 75629164387;
     </script>
     
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
@@ -389,7 +389,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
                 {property:'_PreviousValues.Actuals', operator: 'exists', value: true}
             ],
             fetch: ['_PreviousValues.Actuals','FormattedID','Owner','Actuals','Name','WorkProduct', this.getSetting('typeField'), '_User'],
-            sorters: [{property:'_ValidFrom',direction:'ASC'}]
+            sorters: [{property:'_ValidFrom',direction:'ASC'}],
+            limit: 'Infinity'
         };
         return this._loadSnapshots(config);
         
