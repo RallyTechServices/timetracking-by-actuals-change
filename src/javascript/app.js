@@ -251,7 +251,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         
         this.logger.log("# of stories to fetch:", unique_workproducts.length);
         
-        var chunk_size = 100;
+        var chunk_size = 1000;
         var array_of_filters = [];
         while (filter_array.length > 0) {
             array_of_filters.push(filter_array.splice(0, chunk_size));
@@ -264,7 +264,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     filters: Rally.data.wsapi.Filter.or(filters),
                     model  : 'HierarchicalRequirement',
                     limit  : Infinity,
-                    fetch  : ['FormattedID','Name','Feature','Parent',me.getSetting('productField'),'Iteration','c_WorkType']
+                    fetch  : ['FormattedID','Name','Feature','Parent',me.getSetting('productField'),'Iteration','c_WorkType'],
+                    pageSize: 1000
                 };
                 return me._loadWSAPIItems(config);
             });
@@ -724,7 +725,8 @@ Ext.define("TSTimeTrackingByActualsChange", {
         this.logger.log(config.model, "Loading with filters: ", Ext.clone(config.filters));
         
         var default_config = {
-            fetch: ['ObjectID']
+            fetch: ['ObjectID'],
+            enablePostGet: true
         };
         
         Ext.create('Rally.data.wsapi.Store', Ext.merge(default_config,config)).load({
