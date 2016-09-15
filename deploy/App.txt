@@ -3,14 +3,14 @@
 <head>
     <title>Time Tracking By Actuals Change</title>
     <!--  (c) 2015 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat Sep 10 2016 09:58:01 GMT-0700 (PDT) -->
+    <!--  Build Date: Thu Sep 15 2016 16:07:37 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Sep 10 2016 09:58:01 GMT-0700 (PDT)";
-        var CHECKSUM = 75756961971;
+        var APP_BUILD_DATE = "Thu Sep 15 2016 16:07:37 GMT-0700 (PDT)";
+        var CHECKSUM = 75013285266;
     </script>
     
-    <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
+    <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
 
     <script type="text/javascript">
         Rally.onReady(function() {
@@ -328,7 +328,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     ],this).then({
                         scope: this,
                         success: function(rows) {
-                            this.logger.log('rows with defects: ', rows);
                             
                             Rally.getApp().setLoading("Gathering related information...");
                             Deft.Chain.sequence([
@@ -1048,9 +1047,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         app.logger.log('_filterOutExceptChoices');
         
         store.filter([{
-            filterFn:function(field){ 
-                app.logger.log('field:', field.get('name'), field);
-                
+            filterFn:function(field){                 
                 var attribute_definition = field.get('fieldDefinition').attributeDefinition;
                 var attribute_type = null;
                 if ( attribute_definition ) {
@@ -1076,37 +1073,31 @@ Ext.define("TSTimeTrackingByActualsChange", {
             name: 'typeField',
             xtype: 'rallyfieldcombobox',
             fieldLabel: 'Task Type Field',
-            labelWidth: 75,
-            labelAlign: 'left',
-            minWidth: 200,
+            labelWidth: 85,
+            width: 250,
             margin: 10,
-            autoExpand: false,
-            alwaysExpanded: false,
             model: 'Task',
             listeners: {
                 ready: function(field_box) {
                     me._filterOutExceptChoices(field_box.getStore());
                 }
             },
-            readyEvent: 'ready'
+            //readyEvent: 'ready'
         },
         {
             name: 'productField',
             xtype: 'rallyfieldcombobox',
             fieldLabel: 'Product Field',
-            labelWidth: 75,
-            labelAlign: 'left',
-            minWidth: 200,
-            margin: 10,
-            autoExpand: false,
-            alwaysExpanded: false,
+            labelWidth: 85,
+            width: 250,
+            margin: '10 10 175 10',
             model: 'PortfolioItem',
             listeners: {
                 ready: function(field_box) {
                     me._filterOutExceptChoices(field_box.getStore());
                 }
             },
-            readyEvent: 'ready'
+            //readyEvent: 'ready'
         }];
     }
 });

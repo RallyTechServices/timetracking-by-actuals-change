@@ -150,7 +150,6 @@ Ext.define("TSTimeTrackingByActualsChange", {
                     ],this).then({
                         scope: this,
                         success: function(rows) {
-                            this.logger.log('rows with defects: ', rows);
                             
                             Rally.getApp().setLoading("Gathering related information...");
                             Deft.Chain.sequence([
@@ -870,9 +869,7 @@ Ext.define("TSTimeTrackingByActualsChange", {
         app.logger.log('_filterOutExceptChoices');
         
         store.filter([{
-            filterFn:function(field){ 
-                app.logger.log('field:', field.get('name'), field);
-                
+            filterFn:function(field){                 
                 var attribute_definition = field.get('fieldDefinition').attributeDefinition;
                 var attribute_type = null;
                 if ( attribute_definition ) {
@@ -898,37 +895,31 @@ Ext.define("TSTimeTrackingByActualsChange", {
             name: 'typeField',
             xtype: 'rallyfieldcombobox',
             fieldLabel: 'Task Type Field',
-            labelWidth: 75,
-            labelAlign: 'left',
-            minWidth: 200,
+            labelWidth: 85,
+            width: 250,
             margin: 10,
-            autoExpand: false,
-            alwaysExpanded: false,
             model: 'Task',
             listeners: {
                 ready: function(field_box) {
                     me._filterOutExceptChoices(field_box.getStore());
                 }
             },
-            readyEvent: 'ready'
+            //readyEvent: 'ready'
         },
         {
             name: 'productField',
             xtype: 'rallyfieldcombobox',
             fieldLabel: 'Product Field',
-            labelWidth: 75,
-            labelAlign: 'left',
-            minWidth: 200,
-            margin: 10,
-            autoExpand: false,
-            alwaysExpanded: false,
+            labelWidth: 85,
+            width: 250,
+            margin: '10 10 175 10',
             model: 'PortfolioItem',
             listeners: {
                 ready: function(field_box) {
                     me._filterOutExceptChoices(field_box.getStore());
                 }
             },
-            readyEvent: 'ready'
+            //readyEvent: 'ready'
         }];
     }
 });
